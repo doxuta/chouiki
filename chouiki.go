@@ -32,19 +32,6 @@ const (
 	KindWholeTown
 )
 
-func (k Kind) String() string {
-	switch k {
-	case KindNoTown:
-		return "no-town"
-	case KindBanchiFollows:
-		return "banchi-follows"
-	case KindWholeTown:
-		return "whole-town"
-	default:
-		return "plain"
-	}
-}
-
 // ItemKind classifies one comma-separated element of a qualifier.
 type ItemKind int
 
@@ -73,27 +60,6 @@ const (
 	ItemOther
 )
 
-func (k ItemKind) String() string {
-	switch k {
-	case ItemFloor:
-		return "floor"
-	case ItemChome:
-		return "chome"
-	case ItemBanchi:
-		return "banchi"
-	case ItemBanchiRange:
-		return "banchi-range"
-	case ItemExcept:
-		return "except"
-	case ItemKyoto:
-		return "kyoto-crossing"
-	case ItemOther:
-		return "other"
-	default:
-		return "sub-area"
-	}
-}
-
 // NoteKind describes a 「…」 group attached to an item.
 type NoteKind int
 
@@ -107,17 +73,6 @@ const (
 	// excluding anything: 「峰の原高原」, 「９番地の４、１２番地」.
 	NoteAnnotation
 )
-
-func (k NoteKind) String() string {
-	switch k {
-	case NoteExcept:
-		return "except"
-	case NoteAnnotation:
-		return "annotation"
-	default:
-		return "none"
-	}
-}
 
 // Item is one comma-separated element of a qualifier. Only the fields relevant
 // to Kind are populated; Raw always holds the element verbatim.

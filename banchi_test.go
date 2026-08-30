@@ -1,6 +1,8 @@
 package chouiki_test
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/doxuta/chouiki"
@@ -129,4 +131,38 @@ func mustBanchi(t *testing.T, s string) chouiki.Banchi {
 		t.Fatalf("ParseBanchi(%q) failed", s)
 	}
 	return b
+}
+
+// TestKindJSONRoundTrip pins the wire format of `chouiki parse`: kinds travel
+// as names, and a Town survives a round trip through JSON.
+func TestKindJSONRoundTrip(t *testing.T) {
+	town := chouiki.Parse("南山（４３０番地以上「１７７０−１を除く」、大谷地）")
+
+	b, err := json.Marshal(town)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"kind":"plain"`, `"kind":"banchi-range"`, `"note_kind":"except"`, `"kind":"sub-area"`} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("marshalled Town is missing %s:\n%s", want, b)
+		}
+	}
+
+	var back chouiki.Town
+	if err := json.Unmarshal(b, &back); err != nil {
+		t.Fatal(err)
+	}
+	if back.Kind != town.Kind || len(back.Items) != len(town.Items) {
+		t.Fatalf("round trip changed the town: %+v", back)
+	}
+	for i := range town.Items {
+		if back.Items[i].Kind != town.Items[i].Kind || back.Items[i].NoteKind != town.Items[i].NoteKind {
+			t.Errorf("item %d round-tripped as %v/%v, want %v/%v",
+				i, back.Items[i].Kind, back.Items[i].NoteKind, town.Items[i].Kind, town.Items[i].NoteKind)
+		}
+	}
+
+	if err := json.Unmarshal([]byte(`"not-a-kind"`), &back.Kind); err == nil {
+		t.Error("unmarshalling an unknown kind must fail")
+	}
 }

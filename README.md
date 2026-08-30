@@ -62,7 +62,9 @@ Item kinds:
 | `banchi-range` | 163 | `４７１３〜５２７７番地`, `４３０番地以上` |
 | `except` | 37 | `次のビルを除く` |
 
-The largest single bucket after floors is the catch-all. That is the honest shape of the data: roughly 31% of qualifier items are free-form Japanese place names drawn from an unbounded vocabulary, and `chouiki` does not pretend to understand them — it preserves them exactly and labels them as unanalysed. A test asserts that no parse ever loses a character.
+The largest single bucket after floors is the catch-all. That is the honest shape of the data: roughly 31% of qualifier items are free-form Japanese place names drawn from an unbounded vocabulary, and `chouiki` does not pretend to understand them — it preserves them exactly and labels them as unanalysed.
+
+What is guaranteed instead is that nothing is silently dropped. For a plain record, `Name` plus the item `Raw` values rebuild the input character for character; this was checked across all 122,600 plain records in the release, with 0 mismatches, and a test pins it over the fixture. The other three record kinds deliberately move a phrase out of `Name` — `以下に掲載がない場合` is not a town name — and `Raw` still holds the original field.
 
 ## Install
 
@@ -95,6 +97,12 @@ curl -O https://www.post.japanpost.jp/service/search/zipcode/download/utf/zip/ut
 unzip utf_ken_all.zip
 chouiki stats utf_ken_all.csv     # the breakdown above
 chouiki parse utf_ken_all.csv     # one JSON object per record
+```
+
+`parse` emits kinds as names, not as integers:
+
+```json
+{"raw":"大浦町（４７１３〜５２７７番地）","name":"大浦町","kind":"plain","items":[{"raw":"４７１３〜５２７７番地","kind":"banchi-range","text":"４７１３〜５２７７番地","from":{"raw":"４７１３","nums":[4713]},"to":{"raw":"５２７７番地","nums":[5277]}}]}
 ```
 
 A 23-record fixture covering every kind ships in `testdata/sample.csv`, so `chouiki stats testdata/sample.csv` works with nothing downloaded.
