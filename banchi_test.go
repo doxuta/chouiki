@@ -166,3 +166,69 @@ func TestKindJSONRoundTrip(t *testing.T) {
 		t.Error("unmarshalling an unknown kind must fail")
 	}
 }
+
+// TestBanchiRangeAbbreviatedEnd covers the short form Japan Post uses when the
+// end of a range repeats the start's leading banchi. The spelling １７７０−１〜２
+// is copied verbatim from the 南山 record in utf_ken_all.csv (it sits inside
+// that record's exclusion group); it means 1770-1 through 1770-2, not 1770-1
+// through 2, which would run backwards and match nothing.
+func TestBanchiRangeAbbreviatedEnd(t *testing.T) {
+	items := chouiki.Parse("南山（１７７０−１〜２番地）").Items
+	if len(items) != 1 {
+		t.Fatalf("got %d items, want 1: %+v", len(items), items)
+	}
+	it := items[0]
+	if it.Kind != chouiki.ItemBanchiRange {
+		t.Fatalf("Kind = %v, want banchi-range", it.Kind)
+	}
+	assertBanchi(t, it.Raw, "From", it.From, &chouiki.Banchi{Nums: []int{1770, 1}})
+	assertBanchi(t, it.Raw, "To", it.To, &chouiki.Banchi{Nums: []int{1770, 2}})
+
+	for _, tc := range []struct {
+		banchi string
+		want   bool
+	}{
+		{"１７７０−１", true},
+		{"１７７０−２", true},
+		{"１７７０−３", false},
+		{"１７６９−９", false},
+		{"２", false},
+	} {
+		if got := it.Contains(mustBanchi(t, tc.banchi)); got != tc.want {
+			t.Errorf("%q.Contains(%s) = %v, want %v", it.Raw, tc.banchi, got, tc.want)
+		}
+	}
+}
+
+// TestRangeBoundsAreOrdered pins the invariant at every site that produces a
+// range: either the bounds are ordered, or the text was not classified as a
+// range at all. A backwards range is never emitted.
+func TestRangeBoundsAreOrdered(t *testing.T) {
+	fields := []string{
+		"南山（１７７０−１〜２番地）",
+		"仁礼（３１５３−１〜１１００）",
+		"仁礼（３１５３−１〜３１５３−１１００「峰の原高原」）",
+		"大浦町（４７１３〜５２７７番地）",
+		"大潟区潟守新田（５３の１〜６０の９番地）",
+		"竹房（４５０番地以下）",
+		"下甑町瀬々野浦（１７００番地〜）",
+		"大通西（１〜１９丁目）",
+		// Genuinely backwards text: not a range, so not classified as one.
+		"甲（５０〜４０番地）",
+		"大通西（１９〜１丁目）",
+	}
+	for _, field := range fields {
+		for _, it := range chouiki.Parse(field).Items {
+			if it.Kind == chouiki.ItemBanchiRange && it.From != nil && it.To != nil {
+				if it.From.Compare(*it.To) > 0 {
+					t.Errorf("%s: range %q runs backwards: from %v to %v",
+						field, it.Raw, it.From.Nums, it.To.Nums)
+				}
+			}
+			if it.Kind == chouiki.ItemChome && it.ChomeTo != 0 && it.ChomeTo < it.Chome {
+				t.Errorf("%s: chome range %q runs backwards: %d..%d",
+					field, it.Raw, it.Chome, it.ChomeTo)
+			}
+		}
+	}
+}

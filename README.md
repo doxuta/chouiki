@@ -116,6 +116,7 @@ Stated before you find them.
 - **`「…」` groups are classified, not parsed.** A group is marked as an exclusion (`を除く`, or a trailing `以外`) or an annotation, and its contents stay raw. An item with an unparsed exclusion refuses to answer `Contains` rather than answering wrongly.
 - **No record-level matcher.** There is no "does 〒XXX-XXXX with banchi N resolve to this record". `Contains` answers only about a single parsed range or banchi. Doing it properly needs the exclusion contents parsed and sibling records compared; that is v2.
 - **A chōme item with a trailing banchi keeps it in `Raw`.** `３丁目５` reports `chome=3`; the 5 is not decomposed.
+- **An abbreviated range end is expanded against its start.** `１７７０−１〜２` is read as 1770-1 through 1770-2, not 1770-1 through 2; `To.Raw` still holds `２` as written. A closed range is always ordered — text whose bounds run backwards is not classified as a range at all, and stays verbatim as `sub-area`.
 - **Legacy `KEN_ALL.CSV` is not an input format.** Shift-JIS, half-width katakana, and records split across lines are not handled here on purpose. Run [`inouet/ken-all`](https://github.com/inouet/ken-all) first and feed the result in, or use the UTF-8 file.
 - **Two `「…」` groups in one item are left alone.** `第２地割「７０〜１３６」〜第４地割「３〜１１」` classifies as `sub-area`. There are a handful of these, all in Iwate's 地割 system.
 - Column 8 is assumed to be the 町域 field, which is true of `utf_ken_all.csv` and of `KEN_ALL.CSV` once joined.

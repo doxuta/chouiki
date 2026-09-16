@@ -141,6 +141,9 @@ func parseChome(s string) (from, to int, ok bool) {
 		if err != nil {
 			return 0, 0, false
 		}
+		if to < from {
+			return 0, 0, false // a backwards range is not a range
+		}
 		return from, to, true
 	}
 	n, err := strconv.Atoi(head)
@@ -163,8 +166,11 @@ var (
 	upperBounded = []string{"以下", "以内"}
 )
 
-// parseBanchiRange parses ４７１３〜５２７７番地 and the open-ended forms
+// parseBanchiRange parses ４７１３〜５２７７番地, the abbreviated end form
+// １７７０−１〜２ (which is 1770-1 through 1770-2), and the open-ended forms
 // ４３０番地以上, ４５０番地以下 and １７００番地〜. A nil bound is unbounded.
+// A closed range always comes back ordered: text whose bounds run backwards is
+// reported as not a range, so the caller keeps it verbatim instead.
 func parseBanchiRange(s string) (from, to *Banchi, ok bool) {
 	for _, suffix := range lowerBounded {
 		if rest, cut := strings.CutSuffix(s, suffix); cut {
@@ -187,10 +193,24 @@ func parseBanchiRange(s string) (from, to *Banchi, ok bool) {
 	if !valid {
 		return nil, nil, false
 	}
-	if tail := s[sep+sepWidth(s[sep:]):]; tail == "" {
+	tail := s[sep+sepWidth(s[sep:]):]
+	if tail == "" {
 		return &lo, nil, true // １７００番地〜
-	} else if hi, valid := ParseBanchi(tail); valid {
-		return &lo, &hi, true
 	}
-	return nil, nil, false
+	hi, valid := ParseBanchi(tail)
+	if !valid {
+		return nil, nil, false
+	}
+	// An end written in short form continues the start rather than restarting:
+	// １７７０−１〜２ is 1770-1 through 1770-2, not 1770-1 through 2. Expand it
+	// against the start's leading components; Raw still holds it as written.
+	if len(hi.Nums) < len(lo.Nums) {
+		nums := make([]int, 0, len(lo.Nums))
+		nums = append(nums, lo.Nums[:len(lo.Nums)-len(hi.Nums)]...)
+		hi.Nums = append(nums, hi.Nums...)
+	}
+	if lo.Compare(hi) > 0 {
+		return nil, nil, false // a backwards range is not a range
+	}
+	return &lo, &hi, true
 }
