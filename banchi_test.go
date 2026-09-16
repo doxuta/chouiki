@@ -232,3 +232,72 @@ func TestRangeBoundsAreOrdered(t *testing.T) {
 		}
 	}
 }
+
+// TestBanchiRangeShortEndThatReadsForwardIsKept pins the other half of the
+// abbreviated-end rule: the end is expanded only where taking it literally
+// would run the range backwards. ５３の１〜６０番地 — the 大潟区潟守新田 spelling
+// — already reads forward as 53-1 through 60, so it is kept as written. Reading
+// it as 53-1 through 53-60 instead would silently narrow a range that was never
+// broken, on nothing better than a guess about which of two readings was meant.
+func TestBanchiRangeShortEndThatReadsForwardIsKept(t *testing.T) {
+	it := onlyItem(t, "大潟区潟守新田（５３の１〜６０番地）")
+	if it.Kind != chouiki.ItemBanchiRange {
+		t.Fatalf("Kind = %v, want banchi-range", it.Kind)
+	}
+	assertBanchi(t, it.Raw, "From", it.From, &chouiki.Banchi{Nums: []int{53, 1}})
+	assertBanchi(t, it.Raw, "To", it.To, &chouiki.Banchi{Nums: []int{60}})
+
+	for _, tc := range []struct {
+		banchi string
+		want   bool
+	}{
+		{"５４", true}, // inside on the literal reading, outside on the expanded one
+		{"６０", true},
+		{"６１", false},
+		{"５３", false}, // 53 sorts before 53-1, the start
+	} {
+		if got := it.Contains(mustBanchi(t, tc.banchi)); got != tc.want {
+			t.Errorf("%q.Contains(%s) = %v, want %v", it.Raw, tc.banchi, got, tc.want)
+		}
+	}
+
+	// The sharper case: here expanding would produce 5-9 through 5-6, which is
+	// backwards, so an unconditional expansion does not merely narrow the range
+	// — it drops the item out of banchi-range entirely. Read literally, it is an
+	// ordinary forward range and stays one.
+	wide := onlyItem(t, "甲（５−９〜６番地）")
+	if wide.Kind != chouiki.ItemBanchiRange {
+		t.Fatalf("%q: Kind = %v, want banchi-range", wide.Raw, wide.Kind)
+	}
+	assertBanchi(t, wide.Raw, "From", wide.From, &chouiki.Banchi{Nums: []int{5, 9}})
+	assertBanchi(t, wide.Raw, "To", wide.To, &chouiki.Banchi{Nums: []int{6}})
+}
+
+// TestBanchiRangeDegenerate pins that a range whose bounds are equal is still a
+// range, and still usable. The ordering check that rejects backwards text must
+// reject only what is strictly backwards: loosening it to reject an equal pair
+// would drop １００〜１００番地 to the verbatim catch-all.
+func TestBanchiRangeDegenerate(t *testing.T) {
+	it := onlyItem(t, "甲（１００〜１００番地）")
+	if it.Kind != chouiki.ItemBanchiRange {
+		t.Fatalf("Kind = %v, want banchi-range", it.Kind)
+	}
+	assertBanchi(t, it.Raw, "From", it.From, &chouiki.Banchi{Nums: []int{100}})
+	assertBanchi(t, it.Raw, "To", it.To, &chouiki.Banchi{Nums: []int{100}})
+	if !it.Contains(mustBanchi(t, "１００")) {
+		t.Errorf("%q must contain the single banchi it spans", it.Raw)
+	}
+	if it.Contains(mustBanchi(t, "１０１")) {
+		t.Errorf("%q must not contain 101", it.Raw)
+	}
+}
+
+// onlyItem parses a field that is expected to hold exactly one qualifier item.
+func onlyItem(t *testing.T, field string) chouiki.Item {
+	t.Helper()
+	items := chouiki.Parse(field).Items
+	if len(items) != 1 {
+		t.Fatalf("Parse(%q): got %d items, want 1: %+v", field, len(items), items)
+	}
+	return items[0]
+}
