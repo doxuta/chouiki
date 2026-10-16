@@ -167,10 +167,9 @@ var (
 )
 
 // parseBanchiRange parses ４７１３〜５２７７番地, the abbreviated end form
-// １７７０−１〜２ (which is 1770-1 through 1770-2 because 1770-1 through 2 runs
-// backwards; a short end that reads forward as written, ５３の１〜６０, is left
-// alone), and the open-ended forms ４３０番地以上, ４５０番地以下 and
-// １７００番地〜. A nil bound is unbounded.
+// １７７０−１〜２ (1770-1 through 1770-2) and ３の２〜６ (3-2 through 3-6), and
+// the open-ended forms ４３０番地以上, ４５０番地以下 and １７００番地〜. A nil
+// bound is unbounded.
 // A closed range always comes back ordered: text whose bounds run backwards is
 // reported as not a range, so the caller keeps it verbatim instead.
 func parseBanchiRange(s string) (from, to *Banchi, ok bool) {
@@ -203,17 +202,20 @@ func parseBanchiRange(s string) (from, to *Banchi, ok bool) {
 	if !valid {
 		return nil, nil, false
 	}
-	// An end written in short form can continue the start rather than restart
-	// it: １７７０−１〜２ is 1770-1 through 1770-2, not 1770-1 through 2. Take
-	// the text literally unless the literal reading is impossible — a backwards
-	// range matches nothing, so expanding one loses no reading, while a short
-	// end that already runs forward (５３の１〜６０ is 53-1 through 60) reads
-	// fine as written and rewriting it would discard the data on a guess.
-	// Expansion borrows the start's leading components; Raw stays as written.
-	if len(hi.Nums) < len(lo.Nums) && lo.Compare(hi) > 0 {
+	// An end written in short form continues the start rather than restarting
+	// it: １７７０−１〜２ is 1770-1 through 1770-2, and in
+	// 大豆（１の２、３の２〜６、４の２・４・６、１１の１番地） (上越市 942-0083) ３の２〜６
+	// is 3-2 through 3-6 — read as 3-2 through 6 it would swallow lots 4 and 5,
+	// which the next member lists separately. The expanded reading borrows the
+	// start's leading components and is used whenever it runs forward; only
+	// when it would run backwards (５−９〜６ expands to 5-9 through 5-6) is the
+	// literal reading kept. Raw stays as written either way.
+	if len(hi.Nums) < len(lo.Nums) {
 		nums := make([]int, 0, len(lo.Nums))
 		nums = append(nums, lo.Nums[:len(lo.Nums)-len(hi.Nums)]...)
-		hi.Nums = append(nums, hi.Nums...)
+		if exp := (Banchi{Raw: hi.Raw, Nums: append(nums, hi.Nums...)}); lo.Compare(exp) <= 0 {
+			hi = exp
+		}
 	}
 	if lo.Compare(hi) > 0 {
 		return nil, nil, false // a backwards range is not a range

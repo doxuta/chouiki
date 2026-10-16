@@ -188,6 +188,22 @@ func parseItems(body string) []Item {
 	if len(items) == 0 {
 		return nil
 	}
+	// A list shares the counter written on its last member — １３−４、２０、
+	// ６７８、６８７番地 and 栄町（１、２丁目） alike — so a bare number before
+	// a 丁目 item is a chōme, not a banchi. (For 番地 the bare reading already
+	// is a banchi, so only 丁目 needs the carry.)
+	if last := items[len(items)-1]; last.Kind == ItemChome && strings.HasSuffix(last.Text, "丁目") {
+		for i := range items[:len(items)-1] {
+			it := &items[i]
+			if it.Kind != ItemBanchi && it.Kind != ItemBanchiRange {
+				continue
+			}
+			if from, to, ok := parseChome(it.Text + "丁目"); ok {
+				it.Kind, it.Chome, it.ChomeTo = ItemChome, from, to
+				it.Banchi, it.From, it.To = nil, nil, nil
+			}
+		}
+	}
 	return items
 }
 

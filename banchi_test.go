@@ -233,27 +233,31 @@ func TestRangeBoundsAreOrdered(t *testing.T) {
 	}
 }
 
-// TestBanchiRangeShortEndThatReadsForwardIsKept pins the other half of the
-// abbreviated-end rule: the end is expanded only where taking it literally
-// would run the range backwards. ５３の１〜６０番地 — the 大潟区潟守新田 spelling
-// — already reads forward as 53-1 through 60, so it is kept as written. Reading
-// it as 53-1 through 53-60 instead would silently narrow a range that was never
-// broken, on nothing better than a guess about which of two readings was meant.
-func TestBanchiRangeShortEndThatReadsForwardIsKept(t *testing.T) {
+// TestBanchiRangeShortEndContinuesStart pins that an abbreviated end borrows
+// the start's leading components whenever that reads forward: ５３の１〜６０ is
+// 53-1 through 53-60. The real-data case is 大豆（…３の２〜６、４の２・４・６…）
+// in regress_2026_10_16_test.go; until 2026-10-16 the literal reading
+// (53-1 through 60) was kept on the argument that both were plausible.
+func TestBanchiRangeShortEndContinuesStart(t *testing.T) {
 	it := onlyItem(t, "大潟区潟守新田（５３の１〜６０番地）")
 	if it.Kind != chouiki.ItemBanchiRange {
 		t.Fatalf("Kind = %v, want banchi-range", it.Kind)
 	}
 	assertBanchi(t, it.Raw, "From", it.From, &chouiki.Banchi{Nums: []int{53, 1}})
-	assertBanchi(t, it.Raw, "To", it.To, &chouiki.Banchi{Nums: []int{60}})
+	assertBanchi(t, it.Raw, "To", it.To, &chouiki.Banchi{Nums: []int{53, 60}})
+	if it.To.Raw != "６０番地" {
+		t.Errorf("To.Raw = %q, want the text as written", it.To.Raw)
+	}
 
 	for _, tc := range []struct {
 		banchi string
 		want   bool
 	}{
-		{"５４", true}, // inside on the literal reading, outside on the expanded one
-		{"６０", true},
-		{"６１", false},
+		{"５３の１", true},
+		{"５３の６０", true},
+		{"５３の６１", false},
+		{"５４", false}, // inside only on the literal reading
+		{"６０", false},
 		{"５３", false}, // 53 sorts before 53-1, the start
 	} {
 		if got := it.Contains(mustBanchi(t, tc.banchi)); got != tc.want {
@@ -261,10 +265,8 @@ func TestBanchiRangeShortEndThatReadsForwardIsKept(t *testing.T) {
 		}
 	}
 
-	// The sharper case: here expanding would produce 5-9 through 5-6, which is
-	// backwards, so an unconditional expansion does not merely narrow the range
-	// — it drops the item out of banchi-range entirely. Read literally, it is an
-	// ordinary forward range and stays one.
+	// Where expanding would run backwards (5-9 through 5-6) the literal
+	// reading is the only forward one and is kept.
 	wide := onlyItem(t, "甲（５−９〜６番地）")
 	if wide.Kind != chouiki.ItemBanchiRange {
 		t.Fatalf("%q: Kind = %v, want banchi-range", wide.Raw, wide.Kind)
